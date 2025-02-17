@@ -118,40 +118,6 @@ class DRIVE_Dataset(Dataset):
 
         return image, label
 
-
-# transform = transforms.Compose([
-#     transforms.Resize((576, 576)),  # Resize ảnh về kích thước 576x576, chia hết cho 32
-#     transforms.Grayscale(num_output_channels=1),  # Chuyển ảnh sang 1 kênh (grayscale)
-#     transforms.ToTensor(),  # Chuyển ảnh thành tensor
-# ])
-
-transform = transforms.Compose([
-    transforms.Resize(572, 572),             # Resize image to 224x224
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-])
-
-# Tạo dataset cho train và test
-train_dataset = DRIVE_Dataset(root_dir='DRIVE', split='training', transform=transform)
-test_dataset = DRIVE_Dataset(root_dir='DRIVE', split='test', transform=transform)
-
-# Tạo DataLoader cho train và test
-train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
-
-# Kiểm tra số lượng mẫu trong dataset train
-print(f"Dataset train có {len(train_dataset)} mẫu.")
-
-# Khởi tạo mô hình U-Net
-model = UNet(in_channels=3, out_channels=1)  # Nếu ảnh đầu vào có 3 kênh (RGB) và ảnh phân đoạn 1 kênh (grayscale)
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(device)
-model = model.to(device)  # Di chuyển mô hình lên GPU nếu có, nếu không sẽ sử dụng CPU
-
-# Định nghĩa loss function và optimizer
-criterion = torch.nn.BCEWithLogitsLoss()  # Đối với binary segmentation
-optimizer = optim.Adam(model.parameters(), lr=1e-4)
-
 # Hàm huấn luyện với việc in tiến độ
 def train_model(model, train_loader, criterion, optimizer, num_epochs=10):
     for epoch in range(num_epochs):  # Lặp qua số lượng epoch
@@ -215,8 +181,39 @@ def evaluate_model(model, test_loader):
     print(f"Mean IoU: {iou_score:.4f}")
 
 
-# Huấn luyện mô hình
-train_model(model, train_loader, criterion, optimizer, num_epochs=10)
 
-# Đánh giá mô hình trên tập test
-evaluate_model(model, test_loader)
+if __name__ == "__main__":
+    transform = transforms.Compose([
+        transforms.Resize(572, 572),             
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
+
+    # Tạo dataset cho train và test
+    train_dataset = DRIVE_Dataset(root_dir='DRIVE', split='training', transform=transform)
+    test_dataset = DRIVE_Dataset(root_dir='DRIVE', split='test', transform=transform)
+
+    # Tạo DataLoader cho train và test
+    train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
+
+    # Kiểm tra số lượng mẫu trong dataset train
+    print(f"Dataset train có {len(train_dataset)} mẫu.")
+
+    # Khởi tạo mô hình U-Net
+    model = UNet(in_channels=3, out_channels=1)  # Nếu ảnh đầu vào có 3 kênh (RGB) và ảnh phân đoạn 1 kênh (grayscale)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(device)
+    model = model.to(device)  # Di chuyển mô hình lên GPU nếu có, nếu không sẽ sử dụng CPU
+
+    # Định nghĩa loss function và optimizer
+    criterion = torch.nn.BCEWithLogitsLoss()  # Đối với binary segmentation
+    optimizer = optim.Adam(model.parameters(), lr=1e-4)
+
+    
+    # Huấn luyện mô hình
+    train_model(model, train_loader, criterion, optimizer, num_epochs=10)
+
+    # Đánh giá mô hình trên tập test
+    evaluate_model(model, test_loader)
+
