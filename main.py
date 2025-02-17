@@ -119,11 +119,11 @@ class DRIVE_Dataset(Dataset):
         return image, label
 
 
-transform = transforms.Compose([
-    transforms.Resize((576, 576)),  # Resize ảnh về kích thước 576x576, chia hết cho 32
-    transforms.Grayscale(num_output_channels=1),  # Chuyển ảnh sang 1 kênh (grayscale)
-    transforms.ToTensor(),  # Chuyển ảnh thành tensor
-])
+# transform = transforms.Compose([
+#     transforms.Resize((576, 576)),  # Resize ảnh về kích thước 576x576, chia hết cho 32
+#     transforms.Grayscale(num_output_channels=1),  # Chuyển ảnh sang 1 kênh (grayscale)
+#     transforms.ToTensor(),  # Chuyển ảnh thành tensor
+# ])
 
 transform = transforms.Compose([
     transforms.Resize(572, 572),             # Resize image to 224x224
