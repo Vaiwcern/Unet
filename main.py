@@ -120,9 +120,15 @@ class DRIVE_Dataset(Dataset):
 
 
 transform = transforms.Compose([
-    # transforms.Resize((576, 592)),  # Resize ảnh về kích thước 576x592, chia hết cho 32
-    transforms.Resize((576, 576)),  # Resize ảnh về kích thước 576x592, chia hết cho 32
+    transforms.Resize((576, 576)),  # Resize ảnh về kích thước 576x576, chia hết cho 32
+    transforms.Grayscale(num_output_channels=1),  # Chuyển ảnh sang 1 kênh (grayscale)
     transforms.ToTensor(),  # Chuyển ảnh thành tensor
+])
+
+transform = transforms.Compose([
+    transforms.Resize(572, 572),             # Resize image to 224x224
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
 ])
 
 # Tạo dataset cho train và test
