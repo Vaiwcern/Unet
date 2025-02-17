@@ -108,15 +108,18 @@ class DRIVE_Dataset(Dataset):
         label_path = os.path.join(self.labels_dir, image_name)
 
         # Mở ảnh và nhãn
-        image = Image.open(image_path).convert('RGB')
-        label = Image.open(label_path)
+        image = Image.open(image_path).convert('RGB')  # Ảnh màu
+        label = Image.open(label_path).convert('L')  # Nhãn grayscale (1 kênh màu)
 
-        # Áp dụng transform nếu có
+        # Áp dụng transform cho ảnh, nhưng không cho nhãn
         if self.transform:
             image = self.transform(image)
-            label = self.transform(label)
+
+        # Chuyển nhãn thành tensor (vì nhãn là ảnh grayscale chỉ cần 1 kênh)
+        label = transforms.ToTensor()(label)  # Chuyển nhãn thành tensor với 1 kênh
 
         return image, label
+
 
 # Hàm huấn luyện với việc in tiến độ
 def train_model(model, train_loader, criterion, optimizer, num_epochs=10):
