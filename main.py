@@ -121,7 +121,7 @@ class DRIVE_Dataset(Dataset):
 
 transform = transforms.Compose([
     # transforms.Resize((576, 592)),  # Resize ảnh về kích thước 576x592, chia hết cho 32
-    transforms.Resize((512, 512)),  # Resize ảnh về kích thước 576x592, chia hết cho 32
+    transforms.Resize((572, 572)),  # Resize ảnh về kích thước 576x592, chia hết cho 32
     transforms.ToTensor(),  # Chuyển ảnh thành tensor
 ])
 
