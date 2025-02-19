@@ -176,9 +176,7 @@ class DRIVE_Dataset(Dataset):
         # Áp dụng transform cho ảnh, nhưng không cho nhãn
         if self.transform:
             image = self.transform(image)
-
-        # Chuyển nhãn thành tensor (vì nhãn là ảnh grayscale chỉ cần 1 kênh)
-        label = transforms.ToTensor()(label)  # Chuyển nhãn thành tensor với 1 kênh
+            label = transforms.ToTensor()(label)  # Chuyển nhãn thành tensor với 1 kênh
 
         return image, label
 
@@ -216,7 +214,7 @@ def evaluate_model(model, test_loader):
     
     with torch.no_grad():  # Tắt tính toán gradient trong quá trình đánh giá
         for batch_idx, (images, labels) in enumerate(test_loader):
-            images, labels = images.cuda(), labels.cuda()  # Di chuyển dữ liệu lên GPU nếu có
+            images, labels = images.to(device), labels.to(device)  # Di chuyển dữ liệu lên GPU nếu có
             
             outputs = model(images)  # Forward pass: chạy ảnh qua mô hình để có output
             preds = torch.sigmoid(outputs)  # Chuyển output từ sigmoid thành giá trị [0, 1]
@@ -244,9 +242,8 @@ def evaluate_model(model, test_loader):
 
 if __name__ == "__main__":
     transform = transforms.Compose([
-        transforms.Resize((576, 576)),             
+        # transforms.Resize((576, 576)),             
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
 
     # Tạo dataset cho train và test
@@ -261,7 +258,7 @@ if __name__ == "__main__":
     print(f"Dataset train có {len(train_dataset)} mẫu.")
 
     # Khởi tạo mô hình U-Net
-    model = UNet(in_channels=3, n_channels=1, depth=4, padding=True, up_mode='upconv')  # Nếu ảnh đầu vào có 3 kênh (RGB) và ảnh phân đoạn 1 kênh (grayscale)
+    model = UNet(in_channels=3, n_classes=1, depth=4, padding=True, up_mode='upconv')  # Nếu ảnh đầu vào có 3 kênh (RGB) và ảnh phân đoạn 1 kênh (grayscale)
     print(device)
     model = model.to(device)  # Di chuyển mô hình lên GPU nếu có, nếu không sẽ sử dụng CPU
 
@@ -269,7 +266,6 @@ if __name__ == "__main__":
     criterion = torch.nn.BCEWithLogitsLoss()  # Đối với binary segmentation
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
-    
     # Huấn luyện mô hình
     train_model(model, train_loader, criterion, optimizer, num_epochs=10)
 
