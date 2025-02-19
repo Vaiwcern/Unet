@@ -8,67 +8,129 @@ import os
 from torch.utils.data import Dataset
 from PIL import Image
 from torchvision import transforms
+import numpy as np
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class UNet(nn.Module):
-    def __init__(self, in_channels=1, out_channels=1):
+    def __init__(
+        self,
+        in_channels=1,
+        n_classes=2,
+        depth=5,
+        wf=6,
+        padding=False,
+        batch_norm=False,
+        up_mode='upconv',
+    ):
+        """
+        Implementation of
+        U-Net: Convolutional Networks for Biomedical Image Segmentation
+        (Ronneberger et al., 2015)
+        https://arxiv.org/abs/1505.04597
+
+        Using the default arguments will yield the exact version used
+        in the original paper
+
+        Args:
+            in_channels (int): number of input channels
+            n_classes (int): number of output channels
+            depth (int): depth of the network
+            wf (int): number of filters in the first layer is 2**wf
+            padding (bool): if True, apply padding such that the input shape
+                            is the same as the output.
+                            This may introduce artifacts
+            batch_norm (bool): Use BatchNorm after layers with an
+                               activation function
+            up_mode (str): one of 'upconv' or 'upsample'.
+                           'upconv' will use transposed convolutions for
+                           learned upsampling.
+                           'upsample' will use bilinear upsampling.
+        """
         super(UNet, self).__init__()
-        
-        # Encoder
-        self.encoder1 = self.conv_block(in_channels, 64)
-        self.encoder2 = self.conv_block(64, 128)
-        self.encoder3 = self.conv_block(128, 256)
-        self.encoder4 = self.conv_block(256, 512)
-        
-        # Bottleneck
-        self.bottleneck = self.conv_block(512, 1024)
-        
-        # Decoder
-        self.decoder4 = self.upconv_block(1024, 512)
-        self.decoder3 = self.upconv_block(512, 256)
-        self.decoder2 = self.upconv_block(256, 128)
-        self.decoder1 = self.upconv_block(128, 64)
-        
-        # Output layer
-        self.output = nn.Conv2d(64, out_channels, kernel_size=1)
-        
-    def conv_block(self, in_channels, out_channels):
-        return nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-            nn.ReLU()
-        )
-    
-    def upconv_block(self, in_channels, out_channels):
-        return nn.Sequential(
-            nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2),
-            nn.ReLU(),
-            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-            nn.ReLU()
-        )
-    
+        assert up_mode in ('upconv', 'upsample')
+        self.padding = padding
+        self.depth = depth
+        prev_channels = in_channels
+        self.down_path = nn.ModuleList()
+        for i in range(depth):
+            self.down_path.append(
+                UNetConvBlock(prev_channels, 2 ** (wf + i), padding, batch_norm)
+            )
+            prev_channels = 2 ** (wf + i)
+
+        self.up_path = nn.ModuleList()
+        for i in reversed(range(depth - 1)):
+            self.up_path.append(
+                UNetUpBlock(prev_channels, 2 ** (wf + i), up_mode, padding, batch_norm)
+            )
+            prev_channels = 2 ** (wf + i)
+
+        self.last = nn.Conv2d(prev_channels, n_classes, kernel_size=1)
+
     def forward(self, x):
-        # Encoder path
-        enc1 = self.encoder1(x)
-        enc2 = self.encoder2(enc1)
-        enc3 = self.encoder3(enc2)
-        enc4 = self.encoder4(enc3)
-        
-        # Bottleneck
-        bottleneck = self.bottleneck(enc4)
-        
-        # Decoder path with skip connections
-        dec4 = self.decoder4(bottleneck)
-        dec4 = torch.cat([dec4, enc4], dim=1)  # Skip connection
-        dec3 = self.decoder3(dec4)
-        dec3 = torch.cat([dec3, enc3], dim=1)  # Skip connection
-        dec2 = self.decoder2(dec3)
-        dec2 = torch.cat([dec2, enc2], dim=1)  # Skip connection
-        dec1 = self.decoder1(dec2)
-        dec1 = torch.cat([dec1, enc1], dim=1)  # Skip connection
-        
-        # Output layer
-        out = self.output(dec1)
+        blocks = []
+        for i, down in enumerate(self.down_path):
+            x = down(x)
+            if i != len(self.down_path) - 1:
+                blocks.append(x)
+                x = F.max_pool2d(x, 2)
+
+        for i, up in enumerate(self.up_path):
+            x = up(x, blocks[-i - 1])
+
+        return self.last(x)
+
+
+class UNetConvBlock(nn.Module):
+    def __init__(self, in_size, out_size, padding, batch_norm):
+        super(UNetConvBlock, self).__init__()
+        block = []
+
+        block.append(nn.Conv2d(in_size, out_size, kernel_size=3, padding=int(padding)))
+        block.append(nn.ReLU())
+        if batch_norm:
+            block.append(nn.BatchNorm2d(out_size))
+
+        block.append(nn.Conv2d(out_size, out_size, kernel_size=3, padding=int(padding)))
+        block.append(nn.ReLU())
+        if batch_norm:
+            block.append(nn.BatchNorm2d(out_size))
+
+        self.block = nn.Sequential(*block)
+
+    def forward(self, x):
+        out = self.block(x)
+        return out
+
+
+class UNetUpBlock(nn.Module):
+    def __init__(self, in_size, out_size, up_mode, padding, batch_norm):
+        super(UNetUpBlock, self).__init__()
+        if up_mode == 'upconv':
+            self.up = nn.ConvTranspose2d(in_size, out_size, kernel_size=2, stride=2)
+        elif up_mode == 'upsample':
+            self.up = nn.Sequential(
+                nn.Upsample(mode='bilinear', scale_factor=2),
+                nn.Conv2d(in_size, out_size, kernel_size=1),
+            )
+
+        self.conv_block = UNetConvBlock(in_size, out_size, padding, batch_norm)
+
+    def center_crop(self, layer, target_size):
+        _, _, layer_height, layer_width = layer.size()
+        diff_y = (layer_height - target_size[0]) // 2
+        diff_x = (layer_width - target_size[1]) // 2
+        return layer[
+            :, :, diff_y : (diff_y + target_size[0]), diff_x : (diff_x + target_size[1])
+        ]
+
+    def forward(self, x, bridge):
+        up = self.up(x)
+        crop1 = self.center_crop(bridge, up.shape[2:])
+        out = torch.cat([up, crop1], 1)
+        out = self.conv_block(out)
+
         return out
 
 
@@ -128,7 +190,7 @@ def train_model(model, train_loader, criterion, optimizer, num_epochs=10):
         running_loss = 0.0  # Biến lưu trữ tổng loss mỗi epoch
 
         for batch_idx, (images, labels) in enumerate(train_loader):
-            images, labels = images.cuda(), labels.cuda()  # Di chuyển dữ liệu lên GPU nếu có
+            images, labels = images.to(device), labels.to(device)  # Di chuyển dữ liệu lên GPU nếu có
             
             optimizer.zero_grad()  # Reset gradient của optimizer về 0 trước khi tính toán mới
             outputs = model(images)  # Forward pass: chạy ảnh qua mô hình để có output
@@ -182,7 +244,7 @@ def evaluate_model(model, test_loader):
 
 if __name__ == "__main__":
     transform = transforms.Compose([
-        transforms.Resize((572, 572)tá),             
+        transforms.Resize((576, 576)),             
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
@@ -199,8 +261,7 @@ if __name__ == "__main__":
     print(f"Dataset train có {len(train_dataset)} mẫu.")
 
     # Khởi tạo mô hình U-Net
-    model = UNet(in_channels=3, out_channels=1)  # Nếu ảnh đầu vào có 3 kênh (RGB) và ảnh phân đoạn 1 kênh (grayscale)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = UNet(in_channels=3, n_channels=1, depth=4, padding=True, up_mode='upconv')  # Nếu ảnh đầu vào có 3 kênh (RGB) và ảnh phân đoạn 1 kênh (grayscale)
     print(device)
     model = model.to(device)  # Di chuyển mô hình lên GPU nếu có, nếu không sẽ sử dụng CPU
 
