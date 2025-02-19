@@ -9,6 +9,7 @@ from torch.utils.data import Dataset
 from PIL import Image
 from torchvision import transforms
 import numpy as np
+from PIL import Image
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -207,38 +208,53 @@ def train_model(model, train_loader, criterion, optimizer, num_epochs=10):
         # In ra thông tin về epoch sau mỗi lần lặp
         print(f"Epoch {epoch+1}/{num_epochs}, Loss: {running_loss/len(train_loader):.4f}")
 
-# Hàm đánh giá với việc in tiến độ
-def evaluate_model(model, test_loader):
-    model.eval()  # Chế độ đánh giá (tắt dropout, batch norm)
-    all_preds = []  # Danh sách lưu trữ tất cả các dự đoán
-    all_labels = []  # Danh sách lưu trữ tất cả các nhãn thực tế
+def evaluate_model(model, test_loader, output_dir='predictions'):
+    model.eval()  # Set model to evaluation mode
+    all_preds = []  # List to store predictions
+    all_labels = []  # List to store true labels
     
-    with torch.no_grad():  # Tắt tính toán gradient trong quá trình đánh giá
-        for batch_idx, (images, labels) in enumerate(test_loader):
-            images, labels = images.to(device), labels.to(device)  # Di chuyển dữ liệu lên GPU nếu có
-            
-            outputs = model(images)  # Forward pass: chạy ảnh qua mô hình để có output
-            preds = torch.sigmoid(outputs)  # Chuyển output từ sigmoid thành giá trị [0, 1]
-            preds = preds > 0.5  # Áp dụng threshold 0.5 để phân loại thành 2 lớp (background/foreground)
-            
-            all_preds.append(preds.cpu().numpy())  # Lưu trữ dự đoán về CPU dưới dạng numpy
-            all_labels.append(labels.cpu().numpy())  # Lưu trữ nhãn thực tế về CPU dưới dạng numpy
-            
-            # In tiến độ mỗi 10 batch trong quá trình đánh giá
-            if batch_idx % 10 == 0:  # In mỗi 10 batch
-                print(f"Evaluating Batch [{batch_idx+1}/{len(test_loader)}]")
-        
-    # Tính toán IoU (Intersection over Union) cho đánh giá
-    all_preds = np.concatenate(all_preds, axis=0)  # Nối tất cả các dự đoán lại thành 1 mảng
-    all_labels = np.concatenate(all_labels, axis=0)  # Nối tất cả các nhãn thực tế lại thành 1 mảng
-    
-    all_preds = all_preds.flatten()  # Chuyển các mảng thành dạng 1 chiều để tính toán
-    all_labels = all_labels.flatten()  # Chuyển các nhãn thành dạng 1 chiều để tính toán
-    
-    # Tính toán IoU (Intersection over Union)
-    iou_score = jaccard_score(all_labels, all_preds)  # Dùng chỉ số IoU để đánh giá mô hình
-    print(f"Mean IoU: {iou_score:.4f}")
+    # Create the directory for saving predictions if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
 
+    with torch.no_grad():  # Disable gradient calculations during evaluation
+        for batch_idx, (images, labels) in enumerate(test_loader):
+            images, labels = images.to(device), labels.to(device)  # Move data to GPU if available
+            
+            # Forward pass: get model predictions
+            outputs = model(images)
+            preds = torch.sigmoid(outputs)  # Apply sigmoid to get probabilities
+            preds = preds > 0.5  # Apply threshold of 0.5 to classify as background or foreground
+            
+            # Convert predictions to numpy arrays and store them
+            all_preds.append(preds.cpu().numpy())
+            all_labels.append(labels.cpu().numpy())
+
+            # Save predictions and labels as images
+            for i in range(images.size(0)):  # Process each image in the batch
+                # Get the predicted mask for the current image
+                pred_mask = preds[i].squeeze().cpu().numpy()  # Remove the batch dimension
+                pred_mask_image = Image.fromarray((pred_mask * 255).astype(np.uint8))  # Convert to 8-bit image
+                pred_mask_image.save(os.path.join(output_dir, f"pred_{batch_idx * test_loader.batch_size + i}.png"))
+                
+                # Save the label as well for comparison
+                label_mask = labels[i].squeeze().cpu().numpy()  # Remove the batch dimension
+                label_mask_image = Image.fromarray((label_mask * 255).astype(np.uint8))  # Convert to 8-bit image
+                label_mask_image.save(os.path.join(output_dir, f"label_{batch_idx * test_loader.batch_size + i}_label.png"))
+                
+            # Print progress every 10 batches
+            if batch_idx % 10 == 0:
+                print(f"Evaluating Batch [{batch_idx+1}/{len(test_loader)}]")
+
+    # Flatten predictions and labels for IoU calculation
+    all_preds = np.concatenate(all_preds, axis=0)
+    all_labels = np.concatenate(all_labels, axis=0)
+    
+    all_preds = all_preds.flatten()
+    all_labels = all_labels.flatten()
+
+    # Calculate and print Intersection over Union (IoU) score
+    iou_score = jaccard_score(all_labels, all_preds)
+    print(f"Mean IoU: {iou_score:.4f}")
 
 if __name__ == "__main__":
     transform = transforms.Compose([
