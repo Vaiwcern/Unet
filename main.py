@@ -239,7 +239,6 @@ def evaluate_model(model, test_loader):
     print(f"Mean IoU: {iou_score:.4f}")
 
 
-
 if __name__ == "__main__":
     transform = transforms.Compose([
         # transforms.Resize((576, 576)),             
@@ -258,7 +257,7 @@ if __name__ == "__main__":
     print(f"Dataset train có {len(train_dataset)} mẫu.")
 
     # Khởi tạo mô hình U-Net
-    model = UNet(in_channels=3, n_classes=1, depth=4, padding=True, up_mode='upconv')  # Nếu ảnh đầu vào có 3 kênh (RGB) và ảnh phân đoạn 1 kênh (grayscale)
+    model = UNet(in_channels=3, n_classes=1, depth=5, padding=True, up_mode='upconv')  # Nếu ảnh đầu vào có 3 kênh (RGB) và ảnh phân đoạn 1 kênh (grayscale)
     print(device)
     model = model.to(device)  # Di chuyển mô hình lên GPU nếu có, nếu không sẽ sử dụng CPU
 
