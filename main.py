@@ -124,15 +124,10 @@ class DRIVE_Dataset(Dataset):
 # Hàm huấn luyện với việc in tiến độ
 def train_model(model, train_loader, criterion, optimizer, num_epochs=10):
     for epoch in range(num_epochs):  # Lặp qua số lượng epoch
-        print("HEHE")
         model.train()  # Chế độ huấn luyện
-        print("HEHE")
         running_loss = 0.0  # Biến lưu trữ tổng loss mỗi epoch
-        
-        print("HEHE")
 
         for batch_idx, (images, labels) in enumerate(train_loader):
-            print("HEHE")
             images, labels = images.cuda(), labels.cuda()  # Di chuyển dữ liệu lên GPU nếu có
             
             optimizer.zero_grad()  # Reset gradient của optimizer về 0 trước khi tính toán mới
@@ -187,7 +182,7 @@ def evaluate_model(model, test_loader):
 
 if __name__ == "__main__":
     transform = transforms.Compose([
-        transforms.Resize((572, 572)),             
+        transforms.Resize((572, 572)tá),             
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
