@@ -239,7 +239,7 @@ def evaluate_model(model, test_loader, output_dir='predictions'):
                 # Save the label as well for comparison
                 label_mask = labels[i].squeeze().cpu().numpy()  # Remove the batch dimension
                 label_mask_image = Image.fromarray((label_mask * 255).astype(np.uint8))  # Convert to 8-bit image
-                label_mask_image.save(os.path.join(output_dir, f"label_{batch_idx * test_loader.batch_size + i}_label.png"))
+                label_mask_image.save(os.path.join(output_dir, f"label_{batch_idx * test_loader.batch_size + i}.png"))
                 
             # Print progress every 10 batches
             if batch_idx % 10 == 0:
