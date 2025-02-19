@@ -176,7 +176,7 @@ class DRIVE_Dataset(Dataset):
         # Áp dụng transform cho ảnh, nhưng không cho nhãn
         if self.transform:
             image = self.transform(image)
-            label = transforms.CenterCrop((560, 576))(label)
+            label = transforms.CenterCrop((576, 560))(label)
             label = self.transform(label)  # Chuyển nhãn thành tensor với 1 kênh
 
         return image, label
